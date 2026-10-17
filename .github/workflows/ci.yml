@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  theory-tests:
+    name: Theory engine tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test --package-path MusicTheory
+
+  ios-build:
+    name: iOS app build (macOS)
+    # macOS minutes cost 10x, so only build once the cheap tests pass.
+    needs: theory-tests
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build for the iOS simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project MusicTheoryApp.xcodeproj \
+            -scheme MusicTheoryApp \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -n 200

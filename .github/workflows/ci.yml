@@ -31,12 +31,26 @@ jobs:
         run: brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate
-      - name: Build for the iOS simulator
+      - name: Build for iPhone (unsigned)
         run: |
           set -o pipefail
           xcodebuild build \
             -project MusicTheoryApp.xcodeproj \
             -scheme MusicTheoryApp \
-            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             | tail -n 200
+      # An unsigned .ipa: Sideloadly or AltStore signs it with a free Apple ID on install.
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/MusicTheoryApp.app Payload/
+          zip -qr MusicTheoryApp.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicTheoryApp-ipa
+          path: MusicTheoryApp.ipa
+          retention-days: 14

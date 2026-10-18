@@ -13,7 +13,7 @@ private let games: [Game] = [
     Game(id: "ear", title: "Ear Training", symbol: "ear", isAvailable: false),
     Game(id: "harmony", title: "Harmony", symbol: "pianokeys", isAvailable: false),
     Game(id: "chordEar", title: "Chord Ear Training", symbol: "waveform", isAvailable: false),
-    Game(id: "progressions", title: "Progressions", symbol: "music.note.list", isAvailable: false),
+    Game(id: "progressions", title: "Progressions", symbol: "music.note.list", isAvailable: true),
 ]
 
 struct HomeView: View {
@@ -40,6 +40,7 @@ struct HomeView: View {
             .navigationDestination(for: String.self) { id in
                 switch id {
                 case "flashcards": FlashcardsView()
+                case "progressions": ProgressionsView()
                 default: Text("Coming soon")
                 }
             }

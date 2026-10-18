@@ -35,16 +35,10 @@ struct ChordEarView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Picker("Mode", selection: $timed) {
-                Text("Practice").tag(false)
-                Text("Timed \(timedSeconds)s").tag(true)
-            }
-            .pickerStyle(.segmented)
-
-            header
+            GameModeHeader(timed: $timed, timedSeconds: timedSeconds, session: session, now: now)
 
             if isOver {
-                results
+                RoundResultsView(session: session, onPlayAgain: restart)
             } else if let question {
                 card(question)
             } else if let errorText {
@@ -77,22 +71,6 @@ struct ChordEarView: View {
         }
     }
 
-    @ViewBuilder private var header: some View {
-        if let left = session.remaining(at: now) {
-            HStack {
-                Label("\(left)s", systemImage: "timer")
-                    .foregroundStyle(left <= 10 ? Color.red : Color.primary)
-                Spacer()
-                Text("\(session.correct) right")
-            }
-            .font(.headline.monospacedDigit())
-        } else {
-            Text("\(session.correct) / \(session.answered)")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func card(_ q: ChordEarQuestion) -> some View {
         VStack(spacing: 20) {
             Text("What kind of chord is this?")
@@ -102,59 +80,31 @@ struct ChordEarView: View {
             Button { play(q.chord) } label: {
                 Label("Play again", systemImage: "play.fill").frame(minWidth: 160)
             }
+            .accessibilityHint("Plays the chord again")
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(q.options, id: \.self) { option in
-                    Button { choose(option, in: q) } label: {
-                        Text(option.displayName)
-                            .font(.title3)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity, minHeight: 60)
+                    AnswerButton(title: option.displayName,
+                                 state: answerState(isRight: q.isCorrect(option),
+                                                    isPicked: picked == option, revealed: picked != nil)) {
+                        choose(option, in: q)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(tint(option, in: q))
                     .disabled(picked != nil)
                 }
             }
 
             if let picked {
                 let right = q.isCorrect(picked)
-                Label(right ? "Correct" : "It was \(q.chord.quality.displayName)",
-                      systemImage: right ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(right ? Color.green : Color.red)
+                FeedbackBanner(isCorrect: right, text: right ? "Correct" : "It was \(q.chord.quality.displayName)")
                 Text("\(q.chord.description) = \(q.chord.spelledTones.map(\.description).joined(separator: " "))")
                     .foregroundStyle(.secondary)
                 if !advancesAutomatically {
-                    Button("Next") { nextQuestion() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                    NextButton { nextQuestion() }
                 }
             }
         }
-    }
-
-    private func tint(_ option: ChordQuality, in q: ChordEarQuestion) -> Color? {
-        guard let picked else { return nil }
-        if q.isCorrect(option) { return .green }
-        if option == picked { return .red }
-        return nil
-    }
-
-    private var results: some View {
-        VStack(spacing: 16) {
-            Text("Time's up!").font(.largeTitle.bold())
-            Text("\(session.correct) right out of \(session.answered)").font(.title2)
-            if let accuracy = session.accuracy {
-                Text("\(accuracy)% accuracy").foregroundStyle(.secondary)
-            }
-            Button("Play again") { restart() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-        .padding(.top, 40)
     }
 
     private func choose(_ option: ChordQuality, in q: ChordEarQuestion) {
@@ -162,6 +112,7 @@ struct ChordEarView: View {
         picked = option
         let right = q.isCorrect(option)
         session.record(correct: right)
+        Haptics.answer(correct: right)
         guard advancesAutomatically else { return }
         let delay: UInt64 = right ? 900_000_000 : 2_000_000_000
         let id = questionID

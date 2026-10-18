@@ -167,8 +167,3 @@ public struct IntervalQuizGenerator: Sendable {
         return Array(pool.prefix(5).shuffled(using: &rng).prefix(3))
     }
 }
-
-private func circularDistance(_ a: Int, _ b: Int) -> Int {
-    let d = mod12(a - b)
-    return min(d, 12 - d)
-}

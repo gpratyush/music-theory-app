@@ -11,7 +11,7 @@ struct Game: Identifiable {
 private let games: [Game] = [
     Game(id: "flashcards", title: "Interval Flashcards", symbol: "rectangle.on.rectangle", isAvailable: true),
     Game(id: "ear", title: "Ear Training", symbol: "ear", isAvailable: true),
-    Game(id: "harmony", title: "Harmony", symbol: "pianokeys", isAvailable: false),
+    Game(id: "harmony", title: "Harmony", symbol: "pianokeys", isAvailable: true),
     Game(id: "chordEar", title: "Chord Ear Training", symbol: "waveform", isAvailable: false),
     Game(id: "progressions", title: "Progressions", symbol: "music.note.list", isAvailable: true),
 ]
@@ -42,6 +42,7 @@ struct HomeView: View {
                 case "flashcards": FlashcardsView()
                 case "progressions": ProgressionsView()
                 case "ear": EarTrainingView()
+                case "harmony": HarmonyView()
                 default: Text("Coming soon")
                 }
             }

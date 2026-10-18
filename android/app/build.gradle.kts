@@ -32,6 +32,10 @@ android {
     }
 
     buildFeatures { compose = true }
+
+    // Share the iOS app's piano samples instead of keeping a second copy.
+    sourceSets["main"].assets.srcDir("../../App/Resources/Piano")
+    androidResources { noCompress += "m4a" }
 }
 
 kotlin {

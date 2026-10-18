@@ -56,10 +56,10 @@ enum class Game(
     val isAvailable: Boolean,
 ) {
     FLASHCARDS("Interval Flashcards", "Find notes and name intervals", "🃏", Color(0xFF007AFF), true),
-    EAR("Ear Training", "Hear two notes, name them", "👂", Color(0xFFAF52DE), false),
-    HARMONY("Harmony", "Chords, keys and modes", "🎹", Color(0xFFFF9500), false),
-    CHORD_EAR("Chord Ear Training", "Hear a chord, name its type", "🎧", Color(0xFFFF2D55), false),
-    PROGRESSIONS("Progressions", "Type chords, hear them played", "🎼", Color(0xFF30B0C7), false),
+    EAR("Ear Training", "Hear two notes, name them", "👂", Color(0xFFAF52DE), true),
+    HARMONY("Harmony", "Chords, keys and modes", "🎹", Color(0xFFFF9500), true),
+    CHORD_EAR("Chord Ear Training", "Hear a chord, name its type", "🎧", Color(0xFFFF2D55), true),
+    PROGRESSIONS("Progressions", "Type chords, hear them played", "🎼", Color(0xFF30B0C7), true),
 }
 
 @Composable
@@ -156,6 +156,13 @@ private fun AppSettings(prefs: AppPrefs) {
         }
         Text(
             "Example: ${prefs.notation.label(Interval.P5)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text("Credits", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+        Text(
+            "Piano sound: Salamander Grand Piano by Alexander Holm, licensed CC BY 3.0 " +
+                "(creativecommons.org/licenses/by/3.0).",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

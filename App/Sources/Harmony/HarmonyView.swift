@@ -23,16 +23,10 @@ struct HarmonyView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                Picker("Mode", selection: $timed) {
-                    Text("Practice").tag(false)
-                    Text("Timed \(timedSeconds)s").tag(true)
-                }
-                .pickerStyle(.segmented)
-
-                header
+                GameModeHeader(timed: $timed, timedSeconds: timedSeconds, session: session, now: now)
 
                 if isOver {
-                    results
+                    RoundResultsView(session: session, onPlayAgain: restart)
                 } else if let question {
                     card(question)
                 } else if let errorText {
@@ -63,28 +57,15 @@ struct HarmonyView: View {
         }
     }
 
-    @ViewBuilder private var header: some View {
-        if let left = session.remaining(at: now) {
-            HStack {
-                Label("\(left)s", systemImage: "timer")
-                    .foregroundStyle(left <= 10 ? Color.red : Color.primary)
-                Spacer()
-                Text("\(session.correct) right")
-            }
-            .font(.headline.monospacedDigit())
-        } else {
-            Text("\(session.correct) / \(session.answered)")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func card(_ q: HarmonyQuestion) -> some View {
         VStack(spacing: 16) {
             Text(q.prompt)
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 70)
+                .padding()
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .accessibilityAddTraits(.isHeader)
 
             Button { play(q.chord) } label: { Label("Hear \(q.chord.description)", systemImage: "speaker.wave.2.fill") }
                 .buttonStyle(.bordered)
@@ -93,15 +74,9 @@ struct HarmonyView: View {
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(q.options.indices, id: \.self) { i in
-                    Button { tap(i, in: q) } label: {
-                        Text(q.options[i])
-                            .font(.body.weight(.medium))
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity, minHeight: 56)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(tint(i, in: q))
-                    .disabled(revealed)
+                    AnswerButton(title: q.options[i], state: state(i, in: q),
+                                 minHeight: 56, font: .body.weight(.medium)) { tap(i, in: q) }
+                        .disabled(revealed)
                 }
             }
 
@@ -113,42 +88,24 @@ struct HarmonyView: View {
             }
 
             if revealed {
-                Label(q.isCorrect(selection) ? "Correct" : "Not quite",
-                      systemImage: q.isCorrect(selection) ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(q.isCorrect(selection) ? Color.green : Color.red)
+                FeedbackBanner(isCorrect: q.isCorrect(selection),
+                               text: q.isCorrect(selection) ? "Correct" : "Not quite")
                 Text(q.explanation)
                     .font(.callout)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                 if !advancesAutomatically {
-                    Button("Next") { nextQuestion() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                    NextButton { nextQuestion() }
                 }
             }
         }
     }
 
-    private func tint(_ i: Int, in q: HarmonyQuestion) -> Color? {
-        if !revealed { return selection.contains(i) ? .accentColor : nil }
-        if q.correct.contains(i) { return .green }
-        if selection.contains(i) { return .red }
-        return nil
-    }
-
-    private var results: some View {
-        VStack(spacing: 16) {
-            Text("Time's up!").font(.largeTitle.bold())
-            Text("\(session.correct) right out of \(session.answered)").font(.title2)
-            if let accuracy = session.accuracy {
-                Text("\(accuracy)% accuracy").foregroundStyle(.secondary)
-            }
-            Button("Play again") { restart() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-        .padding(.top, 40)
+    private func state(_ i: Int, in q: HarmonyQuestion) -> AnswerState {
+        if !revealed { return selection.contains(i) ? .selected : .normal }
+        if q.correct.contains(i) { return .correct }
+        if selection.contains(i) { return .wrong }
+        return .normal
     }
 
     private func tap(_ i: Int, in q: HarmonyQuestion) {
@@ -165,6 +122,7 @@ struct HarmonyView: View {
         revealed = true
         let right = q.isCorrect(selection)
         session.record(correct: right)
+        Haptics.answer(correct: right)
         play(q.chord)
         guard advancesAutomatically else { return }
         // Wrong answers stay up longer so the explanation can be read.

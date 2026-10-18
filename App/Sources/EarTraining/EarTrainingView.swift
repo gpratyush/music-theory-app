@@ -28,16 +28,10 @@ struct EarTrainingView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Picker("Mode", selection: $timed) {
-                Text("Practice").tag(false)
-                Text("Timed \(timedSeconds)s").tag(true)
-            }
-            .pickerStyle(.segmented)
-
-            header
+            GameModeHeader(timed: $timed, timedSeconds: timedSeconds, session: session, now: now)
 
             if isOver {
-                results
+                RoundResultsView(session: session, onPlayAgain: restart)
             } else if let question {
                 card(question)
             } else if let errorText {
@@ -69,22 +63,6 @@ struct EarTrainingView: View {
         }
     }
 
-    @ViewBuilder private var header: some View {
-        if let left = session.remaining(at: now) {
-            HStack {
-                Label("\(left)s", systemImage: "timer")
-                    .foregroundStyle(left <= 10 ? Color.red : Color.primary)
-                Spacer()
-                Text("\(session.correct) right")
-            }
-            .font(.headline.monospacedDigit())
-        } else {
-            Text("\(session.correct) / \(session.answered)")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func card(_ q: EarQuestion) -> some View {
         VStack(spacing: 16) {
             Text("This is \(q.reference.name.description). Listen:")
@@ -94,8 +72,10 @@ struct EarTrainingView: View {
             HStack(spacing: 12) {
                 Button { play(q) } label: { Label("Replay", systemImage: "play.fill") }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Plays the reference note and then the two notes again")
                 Button { playReference(q) } label: { Label("Reference", systemImage: "tuningfork") }
                     .buttonStyle(.bordered)
+                    .accessibilityHint("Plays \(q.reference.name.description) on its own")
             }
 
             Text(prompt(for: q))
@@ -108,9 +88,7 @@ struct EarTrainingView: View {
             stepResults(q)
 
             if step == .done && !advancesAutomatically {
-                Button("Next") { nextQuestion() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                NextButton { nextQuestion() }
             }
         }
     }
@@ -128,10 +106,10 @@ struct EarTrainingView: View {
         if settings.style == .nameInterval {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(q.intervalOptions, id: \.self) { iv in
-                    answerButton(notation.label(for: iv),
-                                 tint: tint(isRight: q.isCorrectInterval(iv), isPicked: pickedInterval == iv,
-                                            revealed: pickedInterval != nil),
-                                 disabled: pickedInterval != nil) { pickInterval(iv, q) }
+                    AnswerButton(title: notation.label(for: iv),
+                                 state: answerState(isRight: q.isCorrectInterval(iv), isPicked: pickedInterval == iv,
+                                                    revealed: pickedInterval != nil)) { pickInterval(iv, q) }
+                        .disabled(pickedInterval != nil)
                 }
             }
         } else if step == .first {
@@ -145,28 +123,12 @@ struct EarTrainingView: View {
                           action: @escaping (NoteName) -> Void) -> some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(options, id: \.self) { n in
-                answerButton(n.description,
-                             tint: tint(isRight: isCorrect(n), isPicked: picked == n, revealed: picked != nil),
-                             disabled: picked != nil) { action(n) }
+                AnswerButton(title: n.description,
+                             state: answerState(isRight: isCorrect(n), isPicked: picked == n,
+                                                revealed: picked != nil)) { action(n) }
+                    .disabled(picked != nil)
             }
         }
-    }
-
-    private func answerButton(_ title: String, tint: Color?, disabled: Bool,
-                              action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.title3).frame(maxWidth: .infinity, minHeight: 56)
-        }
-        .buttonStyle(.bordered)
-        .tint(tint)
-        .disabled(disabled)
-    }
-
-    private func tint(isRight: Bool, isPicked: Bool, revealed: Bool) -> Color? {
-        guard revealed else { return nil }
-        if isRight { return .green }
-        if isPicked { return .red }
-        return nil
     }
 
     /// One line per answered step, with the right answer when it was missed.
@@ -193,20 +155,6 @@ struct EarTrainingView: View {
             .foregroundStyle(right ? Color.green : Color.red)
     }
 
-    private var results: some View {
-        VStack(spacing: 16) {
-            Text("Time's up!").font(.largeTitle.bold())
-            Text("\(session.correct) right out of \(session.answered)").font(.title2)
-            if let accuracy = session.accuracy {
-                Text("\(accuracy)% accuracy").foregroundStyle(.secondary)
-            }
-            Button("Play again") { restart() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-        .padding(.top, 40)
-    }
-
     private func isAllCorrect(_ q: EarQuestion) -> Bool {
         switch settings.style {
         case .nameNotes:
@@ -222,6 +170,7 @@ struct EarTrainingView: View {
         guard step == .first, !isOver else { return }
         pickedFirst = n
         session.record(correct: q.isCorrectFirst(n))
+        Haptics.answer(correct: q.isCorrectFirst(n))
         step = .second
     }
 
@@ -229,6 +178,7 @@ struct EarTrainingView: View {
         guard step == .second, !isOver else { return }
         pickedSecond = n
         session.record(correct: q.isCorrectSecond(n))
+        Haptics.answer(correct: q.isCorrectSecond(n))
         finish(q)
     }
 
@@ -236,6 +186,7 @@ struct EarTrainingView: View {
         guard step == .interval, !isOver else { return }
         pickedInterval = iv
         session.record(correct: q.isCorrectInterval(iv))
+        Haptics.answer(correct: q.isCorrectInterval(iv))
         finish(q)
     }
 

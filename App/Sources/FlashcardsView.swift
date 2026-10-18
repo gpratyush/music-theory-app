@@ -24,16 +24,10 @@ struct FlashcardsView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Picker("Mode", selection: $timed) {
-                Text("Practice").tag(false)
-                Text("Timed \(timedSeconds)s").tag(true)
-            }
-            .pickerStyle(.segmented)
-
-            header
+            GameModeHeader(timed: $timed, timedSeconds: timedSeconds, session: session, now: now)
 
             if isOver {
-                results
+                RoundResultsView(session: session, onPlayAgain: restart)
             } else if let question {
                 questionCard(question)
             } else if let errorText {
@@ -64,48 +58,30 @@ struct FlashcardsView: View {
         }
     }
 
-    @ViewBuilder private var header: some View {
-        if let left = session.remaining(at: now) {
-            HStack {
-                Label("\(left)s", systemImage: "timer")
-                    .foregroundStyle(left <= 10 ? Color.red : Color.primary)
-                Spacer()
-                Text("\(session.correct) right")
-            }
-            .font(.headline.monospacedDigit())
-        } else {
-            Text("\(session.correct) / \(session.answered)")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func questionCard(_ question: IntervalQuestion) -> some View {
         VStack(spacing: 20) {
             Text(question.prompt(label: notation.label))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 100)
+                .padding()
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .accessibilityAddTraits(.isHeader)
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(question.options, id: \.self) { option in
-                    Button { choose(option, in: question) } label: {
-                        Text(label(for: option))
-                            .font(.title3)
-                            .frame(maxWidth: .infinity, minHeight: 64)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(tint(for: option, in: question))
-                    .disabled(picked != nil)
+                    AnswerButton(title: label(for: option),
+                                 state: answerState(isRight: question.isCorrect(option),
+                                                    isPicked: picked == option, revealed: picked != nil),
+                                 minHeight: 64) { choose(option, in: question) }
+                        .disabled(picked != nil)
                 }
             }
 
             if let picked {
                 feedback(picked: picked, question: question)
                 if !advancesAutomatically {
-                    Button("Next") { nextQuestion() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                    NextButton { nextQuestion() }
                 }
             }
         }
@@ -113,30 +89,8 @@ struct FlashcardsView: View {
 
     @ViewBuilder
     private func feedback(picked: QuizAnswer, question: IntervalQuestion) -> some View {
-        if question.isCorrect(picked) {
-            Label("Correct", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.headline)
-        } else {
-            Label("Answer: \(label(for: question.correct))", systemImage: "xmark.circle.fill")
-                .foregroundStyle(.red)
-                .font(.headline)
-        }
-    }
-
-    private var results: some View {
-        VStack(spacing: 16) {
-            Text("Time's up!").font(.largeTitle.bold())
-            Text("\(session.correct) right out of \(session.answered)")
-                .font(.title2)
-            if let accuracy = session.accuracy {
-                Text("\(accuracy)% accuracy").foregroundStyle(.secondary)
-            }
-            Button("Play again") { restart() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-        .padding(.top, 40)
+        let right = question.isCorrect(picked)
+        FeedbackBanner(isCorrect: right, text: right ? "Correct" : "Answer: \(label(for: question.correct))")
     }
 
     private func label(for option: QuizAnswer) -> String {
@@ -146,18 +100,12 @@ struct FlashcardsView: View {
         }
     }
 
-    private func tint(for option: QuizAnswer, in question: IntervalQuestion) -> Color? {
-        guard let picked else { return nil }
-        if question.isCorrect(option) { return .green }
-        if option == picked { return .red }
-        return nil
-    }
-
     private func choose(_ option: QuizAnswer, in question: IntervalQuestion) {
         guard picked == nil, !isOver else { return }
         picked = option
         let right = question.isCorrect(option)
         session.record(correct: right)
+        Haptics.answer(correct: right)
         guard advancesAutomatically else { return }
         // Leave a wrong answer on screen longer so the right one can be read.
         let delay: UInt64 = right ? 600_000_000 : (timed ? 1_200_000_000 : 1_800_000_000)

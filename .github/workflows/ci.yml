@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  theory-tests:
+    name: Theory engine tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test --package-path MusicTheory
+
+  ios-build:
+    name: iOS app build (macOS)
+    # macOS minutes cost 10x, so only build once the cheap tests pass.
+    needs: theory-tests
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build for iPhone (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project MusicTheoryApp.xcodeproj \
+            -scheme MusicTheoryApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -n 200
+      # An unsigned .ipa: Sideloadly or AltStore signs it with a free Apple ID on install.
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/MusicTheoryApp.app Payload/
+          zip -qr MusicTheoryApp.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicTheoryApp-ipa
+          path: MusicTheoryApp.ipa
+          retention-days: 14
+      # Simulator build for Appetize.io (try the app in a browser).
+      - name: Build for the iOS simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project MusicTheoryApp.xcodeproj \
+            -scheme MusicTheoryApp \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -n 200
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Build/Products/Release-iphonesimulator/MusicTheoryApp.app \
+            MusicTheoryApp-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicTheoryApp-simulator-for-appetize
+          path: MusicTheoryApp-simulator.zip
+          retention-days: 14

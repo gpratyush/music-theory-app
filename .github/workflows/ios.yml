@@ -1,12 +1,15 @@
-name: CI
+name: iOS
 
+# Android-only changes don't need the (slow) macOS build.
 on:
   pull_request:
+    paths-ignore: ["android/**", ".github/workflows/android.yml"]
   push:
     branches: [main]
+    paths-ignore: ["android/**", ".github/workflows/android.yml"]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -77,29 +80,3 @@ jobs:
           path: MusicTheoryApp-simulator.zip
           retention-days: 14
 
-  android-build:
-    name: Android app build (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: android
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Theory tests
-        run: ./gradlew :theory:test --console=plain
-      - name: Build APK
-        run: ./gradlew :app:assembleRelease --console=plain
-      # Debug-key signed, so it installs straight onto a phone (allow "unknown sources").
-      - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk MusicTheory.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MusicTheory-android-apk
-          path: android/MusicTheory.apk
-          retention-days: 14

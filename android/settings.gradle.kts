@@ -10,8 +10,13 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    // Versions live here so each module loads its plugins together (the Kotlin Android
+    // plugin has to see the Android plugin's classes).
     plugins {
         id("com.android.application") version "8.10.1"
+        kotlin("jvm") version "2.1.21"
+        kotlin("android") version "2.1.21"
+        kotlin("plugin.compose") version "2.1.21"
     }
 }
 
